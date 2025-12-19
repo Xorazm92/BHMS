@@ -1,0 +1,7 @@
+{
+  "name": "BHMS Expert Admin",
+  "description": "Admin dashboard for the BHMS Telegram Bot. Upload documents, manage the knowledge base, and test the RAG chatbot logic using Gemini 3.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
