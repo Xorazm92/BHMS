@@ -11,24 +11,24 @@ const KEYS = {
 };
 
 export class StorageRepository {
-  
+
   // --- SYSTEM CHECK ---
   static async checkDatabaseStatus(): Promise<'OK' | 'MISSING_TABLES' | 'DISCONNECTED'> {
-      if (!isSupabaseConfigured() || !supabase) return 'DISCONNECTED';
+    if (!isSupabaseConfigured() || !supabase) return 'DISCONNECTED';
 
-      // Oddiy tekshiruv: Documents jadvalini chaqirib ko'ramiz
-      const { error } = await supabase.from('documents').select('id').limit(1);
-      
-      if (error) {
-          // 42P01 - PostgreSQL kodi: "relation does not exist" (Jadval yo'q)
-          if (error.code === '42P01') {
-              return 'MISSING_TABLES';
-          }
-          console.error("DB Check Error:", error);
-          // Boshqa xatolik bo'lsa ham, ehtimol ulanish bor lekin muammo bor
-          return 'DISCONNECTED'; 
+    // Oddiy tekshiruv: Documents jadvalini chaqirib ko'ramiz
+    const { error } = await supabase.from('documents').select('id').limit(1);
+
+    if (error) {
+      // 42P01 - PostgreSQL kodi: "relation does not exist" (Jadval yo'q)
+      // Status 404 - PostGrest kodi: Jadvallar hali yaratilmagan bo'lishi mumkin
+      if (error.code === '42P01' || (error as any).status === 404) {
+        return 'MISSING_TABLES';
       }
-      return 'OK';
+      console.error("DB Check Error:", error);
+      return 'DISCONNECTED';
+    }
+    return 'OK';
   }
 
   // --- DOCUMENTS ---
@@ -38,23 +38,23 @@ export class StorageRepository {
         .from('documents')
         .select('*')
         .order('id', { ascending: true });
-      
+
       // Agar jadval bo'lmasa, xatoni yuqoriga uzatamiz (App.tsx da ushlaymiz)
-      if (error && error.code === '42P01') {
-          throw new Error("MISSING_TABLES");
+      if (error && (error.code === '42P01' || (error as any).status === 404)) {
+        throw new Error("MISSING_TABLES");
       }
 
       // AVTOMATIK SEEDING (Agar baza bo'sh bo'lsa va jadval mavjud bo'lsa)
       if (!error && (!data || data.length === 0)) {
-          console.log("Supabase bo'sh. Ma'lumotlar yuklanmoqda...");
-          await this.seedDatabase();
-          // Qayta yuklash
-          const retry = await supabase.from('documents').select('*').order('id', { ascending: true });
-          if(retry.data) {
-             return retry.data.map(this.mapSupabaseDoc);
-          }
+        console.log("Supabase bo'sh. Ma'lumotlar yuklanmoqda...");
+        await this.seedDatabase();
+        // Qayta yuklash
+        const retry = await supabase.from('documents').select('*').order('id', { ascending: true });
+        if (retry.data) {
+          return retry.data.map(this.mapSupabaseDoc);
+        }
       }
-      
+
       if (!error && data && data.length > 0) {
         return data.map(this.mapSupabaseDoc);
       }
@@ -71,32 +71,32 @@ export class StorageRepository {
 
   // Supabase dan kelgan ma'lumotni formatlash
   private static mapSupabaseDoc(d: any): DocumentChunk {
-      return {
-          id: d.id.toString(),
-          title: d.title,
-          content: d.content,
-          isActive: d.is_active,
-          category: d.category as any,
-          createdAt: new Date(d.created_at).getTime()
-      };
+    return {
+      id: d.id.toString(),
+      title: d.title,
+      content: d.content,
+      isActive: d.is_active,
+      category: d.category as any,
+      createdAt: new Date(d.created_at).getTime()
+    };
   }
 
   // Bazani to'ldirish funksiyasi
   static async seedDatabase() {
-      if (!supabase) return;
-      
-      console.log("Seeding started...");
-      // ID larni olib tashlaymiz, Supabase o'zi generatsiya qiladi
-      const payload = BHMS_SEEDS.map(({ id, ...rest }) => ({
-          title: rest.title,
-          content: rest.content,
-          category: rest.category,
-          is_active: rest.isActive
-      }));
+    if (!supabase) return;
 
-      const { error } = await supabase.from('documents').insert(payload);
-      if(error) console.error("Seeding Error:", error);
-      else console.log("✅ Baza muvaffaqiyatli to'ldirildi!");
+    console.log("Seeding started...");
+    // ID larni olib tashlaymiz, Supabase o'zi generatsiya qiladi
+    const payload = BHMS_SEEDS.map(({ id, ...rest }) => ({
+      title: rest.title,
+      content: rest.content,
+      category: rest.category,
+      is_active: rest.isActive
+    }));
+
+    const { error } = await supabase.from('documents').insert(payload);
+    if (error) console.error("Seeding Error:", error);
+    else console.log("✅ Baza muvaffaqiyatli to'ldirildi!");
   }
 
   static async saveDocument(doc: DocumentChunk): Promise<void> {
@@ -148,7 +148,7 @@ export class StorageRepository {
         .select('*')
         .order('created_at', { ascending: true })
         .limit(50);
-      
+
       if (error && error.code === '42P01') return []; // Jadval yo'q bo'lsa shunchaki bo'sh qaytar
 
       if (data) {
@@ -184,11 +184,11 @@ export class StorageRepository {
   }
 
   static async clearChatHistory(): Promise<void> {
-      if (isSupabaseConfigured() && supabase) {
-          await supabase.from('chat_history').delete().neq('id', 0);
-          return;
-      }
-      localStorage.removeItem(KEYS.CHAT);
+    if (isSupabaseConfigured() && supabase) {
+      await supabase.from('chat_history').delete().neq('id', 0);
+      return;
+    }
+    localStorage.removeItem(KEYS.CHAT);
   }
 
   // --- AUTH ---

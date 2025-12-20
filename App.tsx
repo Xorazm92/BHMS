@@ -390,7 +390,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ documents, refreshDocum
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [simInput, setSimInput] = useState('');
   const [isSimTyping, setIsSimTyping] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('finlex_gemini_api_key') || '');
+  const [apiKey, setApiKey] = useState(localStorage.getItem('finlex_gemini_api_key') || (window as any).process?.env?.GEMINI_API_KEY || '');
   const simEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -540,11 +540,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ documents, refreshDocum
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><Settings className="text-blue-600" /> Tizim Sozlamalari</h2>
 
               <div className="space-y-6">
-                <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 flex gap-3 text-orange-900">
-                  <AlertTriangle className="shrink-0" />
+                <div className={`${apiKey ? 'bg-green-50 border-green-100 text-green-900' : 'bg-orange-50 border-orange-100 text-orange-900'} border rounded-xl p-4 flex gap-3`}>
+                  {apiKey ? <CheckCircle2 className="shrink-0 text-green-600" /> : <AlertTriangle className="shrink-0" />}
                   <div>
                     <h4 className="font-bold">Google Gemini API Kaliti</h4>
-                    <p className="text-sm mt-1">Agar bot "API Key Invalid" xatosini bersa, yangi ishlaydigan kalitni shu yerga kiriting. Bu kalit brauzeringiz xotirasida saqlanadi.</p>
+                    <p className="text-sm mt-1">
+                      {apiKey
+                        ? (localStorage.getItem('finlex_gemini_api_key')
+                          ? "Kalit brauzer xotirasidan (Local Storage) olingan."
+                          : "Kalit server sozlamalaridan (.env) avtomatik olingan.")
+                        : "API Kalit topilmadi. .env faylini tekshiring yoki shu yerga kiriting."}
+                    </p>
                   </div>
                 </div>
 

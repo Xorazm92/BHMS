@@ -33,40 +33,71 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // AI Clientni dinamik yaratish (Xatolik bo'lsa yangilash oson bo'lishi uchun)
 const getAIClient = () => {
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PLACEHOLDER") || GEMINI_API_KEY.length < 10) {
+    const key = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (!key || key.includes("your_gemini_api_key_here") || key.length < 10) {
         return null;
     }
-    return new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    return new GoogleGenAI({ apiKey: key });
 };
 
 // --- 3. MANTIQ (LOGIKA) ---
-const FALLBACK_DOCS = [
-    { title: "Tizim Xabari", content: "Hozircha ma'lumotlar bazasi ulanmagan yoki bo'sh." }
+const LOCAL_DOCS = [
+    { title: 'BHMS 1-son: Hisob siyosati', content: '1-sonli BHMS. Maqsad: moliyaviy hisobotni tuzish va taqdim etish qoidalarini belgilash. Hisob siyosati, Uzluksizlik tamoyili, Moslik tamoyili.' },
+    { title: 'BHMS 2-son: Daromadlar', content: '2-sonli BHMS. Asosiy xo‘jalik faoliyatidan olingan daromadlar. Tan olish shartlari: mulk huquqi o‘tishi, ishonchli baholash, iqtisodiy naf.' },
+    { title: 'BHMS 3-son: Moliyaviy natijalar', content: '3-sonli BHMS. Moliyaviy natijalar to‘g‘risidagi hisobot. Tarkibi: daromadlar, xarajatlar, foyda va zararlar.' },
+    { title: 'BHMS 4-son: TMZ', content: '4-sonli BHMS. Tovar-moddiy zaxiralar. Baholash: tannarx yoki sof sotish qiymatining eng pastida. FIFO, AVECO usullari.' },
+    { title: 'BHMS 5-son: Asosiy vositalar', content: '5-sonli BHMS. Asosiy vositalar (AV). Amortizatsiya usullari: To\'g\'ri chiziqli, Kamayib boruvchi qoldiq, Ish hajmi.' },
+    { title: 'BHMS 6-son: Ijara', content: '6-sonli BHMS. Moliyaviy ijara (lizing) va Operativ ijara turlari.' },
+    { title: 'BHMS 7-son: Nomoddiy aktivlar', content: '7-sonli BHMS. Nomoddiy aktivlar (Litsenziyalar, Dasturlar). Tannarx bo\'yicha hisob va amortizatsiya.' },
+    { title: 'BHMS 8-son: Konsolidatsiya', content: '8-sonli BHMS. Ona va sho‘ba korxonalar moliyaviy hisobotini birlashtirish qoidalari.' },
+    { title: 'BHMS 9-son: Pul oqimlari', content: '9-sonli BHMS. Pul mablag‘lari oqimlari to‘g‘risidagi hisobot. Operatsion, investitsiya va moliyaviy faoliyat.' },
+    { title: 'BHMS 10-son: Subsidiyalar', content: '10-sonli BHMS. Davlat subsidiyalari hisobi va ularni daromad sifatida tan olish.' },
+    { title: 'BHMS 11-son: ITTKI / R&D', content: '11-sonli BHMS. Ilmiy-tadqiqot va tajriba-konstruktorlik ishlari xarajatlari.' },
+    { title: 'BHMS 12-son: Investitsiyalar', content: '12-sonli BHMS. Moliyaviy investitsiyalar: qisqa va uzoq muddatli qo\'yilmalar.' },
+    { title: 'BHMS 14-son: Xususiy kapital', content: '14-sonli BHMS. Xususiy kapital to‘g‘risidagi hisobot va uning tarkibi.' },
+    { title: 'BHMS 15-son: Balans', content: '15-sonli BHMS. Buxgalteriya balansining tuzilishi (Aktivlar, Majburiyatlar, Kapital).' },
+    { title: 'BHMS 16-son: Uzluksiz TMZ', content: '16-sonli BHMS. Uzluksiz jarayonda tovar-moddiy zaxiralarni hisobga olish xususiyatlari.' },
+    { title: 'BHMS 17-son: Qurilish', content: '17-sonli BHMS. Qurilish shartnomalari bo‘yicha daromad va xarajatlar (Tayyorlik darajasiga ko\'ra).' },
+    {
+        title: 'BHMS 19-son: Inventarizatsiya', content: '19-sonli BHMS. Yo\'qlama (inventarizatsiya) o\'tkazish tartibi va natijalarni aks ettirish.'
+    },
+    { title: 'BHMS 20-son: Kichik tadbirkorlik', content: '20-sonli BHMS. Kichik biznes subyektlari uchun soddalashtirilgan hisob qoidalari.' },
+    { title: 'BHMS 21-son: Hisoblar rejasi', content: '21-sonli BHMS. Yagona hisoblar rejasi (0100-9900 hisoblar).' },
+    { title: 'BHMS 22-son: Valyuta kursi', content: '22-sonli BHMS. Valyuta kurs farqlarini hisobga olish va qayta baholash.' },
+    { title: 'BHMS 23-son: Qayta tashkil etish', content: '23-sonli BHMS. Korxonalarni qo\'shish, bo\'lish va o\'zgartirish hisobi.' },
+    { title: 'BHMS 24-son: Qarz xarajatlari', content: '24-sonli BHMS. Kredit va qarzlar bo‘yicha foizlarni kapitallashtirish yoki xarajatga chiqarish.' }
 ];
 
 async function getRelevantDocuments(query) {
-    if (supabase) {
-        try {
+    let allDocs = [...LOCAL_DOCS];
+
+    try {
+        if (supabase) {
             const { data, error } = await supabase
                 .from('documents')
                 .select('title, content')
                 .eq('is_active', true);
 
             if (!error && data && data.length > 0) {
-                const searchTerms = query.toLowerCase().split(' ').filter(w => w.length > 3);
-                if (searchTerms.length === 0) return data.slice(0, 5);
-
-                const relevant = data.filter(doc => {
-                    const text = (doc.title + " " + doc.content).toLowerCase();
-                    return searchTerms.some(term => text.includes(term));
-                });
-                return relevant.length > 0 ? relevant.slice(0, 8) : [];
+                allDocs = [...data, ...LOCAL_DOCS];
             }
-        } catch (err) {
-            console.error("⚠️ DB Error:", err.message);
         }
+    } catch (err) {
+        console.error("⚠️ Supabase ulanishda xato, local bazadan foydalaniladi.");
     }
-    return FALLBACK_DOCS;
+
+    const searchTerms = query.toLowerCase()
+        .split(/[\s,.-]+/) // Bo'sh joy va belgilardan ajratish
+        .filter(w => w.length >= 1 && !['nima', 'edi', 'haqida', 'ber', 'uchun'].includes(w));
+
+    if (searchTerms.length === 0) return allDocs.slice(0, 5);
+
+    const relevant = allDocs.filter(doc => {
+        const text = (doc.title + " " + doc.content).toLowerCase();
+        return searchTerms.some(term => text.includes(term));
+    });
+
+    return relevant.length > 0 ? relevant.slice(0, 10) : allDocs.slice(0, 3);
 }
 
 async function generateAIResponse(userMsg, contextDocs) {
@@ -233,7 +264,15 @@ server.listen(PORT, () => {
     console.log(`\n===============================================`);
     console.log(`✅ FinLex Server ishga tushdi!`);
     console.log(`🌍 WEB (Admin Panel): http://localhost:${PORT}`);
-    console.log(`🤖 TELEGRAM BOT:      Faol (Listening...)`);
+    console.log(`🤖 TELEGRAM BOT:      Launched and waiting for messages...`);
+
+    if (!getAIClient()) {
+        console.warn(`\n⚠️  DIQQAT: .env faylida API_KEY sozlanmagan!`);
+        console.warn(`   Telegram bot javob bermasligi mumkin.`);
+        console.warn(`   Iltimos, .env faylida haqiqiy Gemini API kalitini kiritib serverni qayta ishga tushiring.\n`);
+    } else {
+        console.log(`✨ AI EXPERT:         Bot is connected to Gemini AI.`);
+    }
     console.log(`===============================================\n`);
 });
 

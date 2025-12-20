@@ -2,7 +2,7 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { DocumentChunk, SystemConfig, ChatMessage } from "../types";
 
 export class AIService {
-  
+
   // API Kalitni olish (Faqat Frontend uchun)
   private getApiKey(): string | undefined {
     // 1. Admin panelda kiritilgan kalitni tekshiramiz (LocalStorage)
@@ -10,12 +10,16 @@ export class AIService {
     if (localKey && localKey.length > 10) {
       return localKey;
     }
-    // 2. Agar .env dan o'qish imkoni bo'lsa (lekin bu frontda ishlamasligi mumkin)
+    // 2. Serverdan inject qilingan .env kalitini tekshiramiz
+    const envKey = (window as any).process?.env?.GEMINI_API_KEY;
+    if (envKey && envKey.length > 10 && !envKey.includes("your_gemini_api_key")) {
+      return envKey;
+    }
     return undefined;
   }
 
   private buildPrompt(query: string, context: string, history: ChatMessage[]): string {
-    const recentHistory = history.slice(-3).map(msg => 
+    const recentHistory = history.slice(-3).map(msg =>
       `${msg.role === 'user' ? 'FOYDALANUVCHI' : 'AI'}: ${msg.text}`
     ).join("\n");
 
@@ -37,10 +41,10 @@ VAZIFA: Yuqoridagi bilimlar bazasidan foydalanib, savolga aniq javob ber.
   }
 
   async generateResponse(
-    query: string, 
-    chunks: DocumentChunk[], 
+    query: string,
+    chunks: DocumentChunk[],
     config: SystemConfig,
-    history: ChatMessage[] = [] 
+    history: ChatMessage[] = []
   ): Promise<string> {
     try {
       const apiKey = this.getApiKey();
@@ -56,12 +60,12 @@ VAZIFA: Yuqoridagi bilimlar bazasidan foydalanib, savolga aniq javob ber.
       const activeChunks = chunks.filter(c => {
         if (!c.isActive) return false;
         if (searchTerms.length === 0) return true;
-        return searchTerms.some(term => 
-          c.title.toLowerCase().includes(term) || 
+        return searchTerms.some(term =>
+          c.title.toLowerCase().includes(term) ||
           c.content.toLowerCase().includes(term)
         );
       });
-      
+
       const contextText = activeChunks
         .slice(0, 15)
         .map(c => `📗 ${c.title}:\n${c.content}`)
@@ -88,7 +92,7 @@ VAZIFA: Yuqoridagi bilimlar bazasidan foydalanib, savolga aniq javob ber.
     } catch (error: any) {
       console.error("AI Error:", error);
       if (error.message?.includes("400") || error.message?.includes("API key")) {
-         return "🚫 **API Kalit Xatosi**: Kiritilgan kalit noto'g'ri. Sozlamalar bo'limidan yangilang.";
+        return "🚫 **API Kalit Xatosi**: Kiritilgan kalit noto'g'ri. Sozlamalar bo'limidan yangilang.";
       }
       return `🚫 **Xatolik**: ${error.message}`;
     }
