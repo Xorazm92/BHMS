@@ -34,7 +34,6 @@ log('INFO', 'Server starting up...');
 const BOT_TOKEN = process.env.BOT_TOKEN || "8574437707:AAGsyX3ipeEevEcAq6EM1hy1cw_VVHr_sGk";
 // Agar .env da API KEY bo'lmasa, server to'xtab qolmaydi, xato xabar chiqaradi.
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ljxfducrmevaxvzykasm.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_lMoLI7EBg5ymUOteNiIKgA_geb75o-w';
