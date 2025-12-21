@@ -3,14 +3,9 @@ import { DocumentChunk, SystemConfig, ChatMessage } from "../types";
 
 export class AIService {
 
-  // API Kalitni olish (Faqat Frontend uchun)
+  // API Kalitni olish (Faqat .env dan)
   private getApiKey(): string | undefined {
-    // 1. Admin panelda kiritilgan kalitni tekshiramiz (LocalStorage)
-    const localKey = localStorage.getItem('finlex_gemini_api_key');
-    if (localKey && localKey.length > 10) {
-      return localKey;
-    }
-    // 2. Serverdan inject qilingan .env kalitini tekshiramiz
+    // Serverdan inject qilingan .env kalitini tekshiramiz
     const envKey = (window as any).process?.env?.GEMINI_API_KEY;
     if (envKey && envKey.length > 10 && !envKey.includes("your_gemini_api_key")) {
       return envKey;
@@ -24,7 +19,7 @@ export class AIService {
     ).join("\n");
 
     return `
-SEN: FinLex AI - O'zbekiston Buxgalteriya Hisobi (BHMS) va Moliya huquqi bo'yicha professional maslahatchisan.
+SEN: Finco AI - O'zbekiston Buxgalteriya Hisobi (BHMS) va Moliya huquqi bo'yicha professional maslahatchisan.
 
 ---
 BILIMLAR BAZASI:

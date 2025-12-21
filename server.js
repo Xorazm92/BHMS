@@ -1,7 +1,8 @@
-// --- FinLex AI: UNIFIED SERVER ---
+// --- Finco AI: UNIFIED SERVER ---
 // 1. Telegram Botni ishlatadi.
-// 2. Admin Panelni (Web) brauzerga uzatadi.
+// 2. Admin Panelni (Web) brauzerga uzatada.
 // 3. Fayl importlarini (.ts, .tsx) avtomatik to'g'irlaydi.
+// 4. Logging system bilan ishlaydi.
 
 import { Telegraf } from 'telegraf';
 import { GoogleGenAI } from '@google/genai';
@@ -19,9 +20,20 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// --- LOGGING SYSTEM ---
+const logFile = path.join(__dirname, 'server.log');
+const log = (level, message) => {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${level}: ${message}\n`;
+    console.log(logMessage.trim());
+    fs.appendFileSync(logFile, logMessage);
+};
+
+log('INFO', 'Server starting up...');
+
 const BOT_TOKEN = process.env.BOT_TOKEN || "8574437707:AAGsyX3ipeEevEcAq6EM1hy1cw_VVHr_sGk";
 // Agar .env da API KEY bo'lmasa, server to'xtab qolmaydi, xato xabar chiqaradi.
-const GEMINI_API_KEY = process.env.API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ljxfducrmevaxvzykasm.supabase.co';
@@ -33,7 +45,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // AI Clientni dinamik yaratish (Xatolik bo'lsa yangilash oson bo'lishi uchun)
 const getAIClient = () => {
-    const key = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    const key = process.env.GEMINI_API_KEY || process.env.API_KEY;
     if (!key || key.includes("your_gemini_api_key_here") || key.length < 10) {
         return null;
     }
@@ -111,7 +123,7 @@ async function generateAIResponse(userMsg, contextDocs) {
     try {
         const contextText = contextDocs.map(d => `📄 ${d.title}:\n${d.content}`).join("\n\n");
         const prompt = `
-SEN: FinLex AI - O'zbekiston buxgalteriya ekspertisan.
+SEN: Finco AI - O'zbekiston buxgalteriya ekspertisan.
 BILIMLAR BAZASI:
 ${contextText}
 
@@ -146,7 +158,7 @@ async function logChat(role, text) {
 }
 
 // --- 4. BOT HANDLERS ---
-bot.start((ctx) => ctx.reply("🛡 **FinLex AI** ga xush kelibsiz! Savolingizni yozing.", { parse_mode: 'Markdown' }));
+bot.start((ctx) => ctx.reply("🛡 **Finco AI** ga xush kelibsiz! Savolingizni yozing.", { parse_mode: 'Markdown' }));
 
 bot.on('text', async (ctx) => {
     const userMsg = ctx.message.text;
@@ -208,7 +220,8 @@ const server = http.createServer((req, res) => {
         env: ${JSON.stringify({
                             SUPABASE_URL: process.env.SUPABASE_URL,
                             SUPABASE_KEY: process.env.SUPABASE_KEY,
-                            GEMINI_API_KEY: process.env.API_KEY || process.env.GEMINI_API_KEY
+                            GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.API_KEY,
+                            ADMIN_PASSWORD: process.env.ADMIN_PASSWORD
                         })}
       };
     </script>
@@ -231,7 +244,8 @@ const server = http.createServer((req, res) => {
         env: ${JSON.stringify({
                     SUPABASE_URL: process.env.SUPABASE_URL,
                     SUPABASE_KEY: process.env.SUPABASE_KEY,
-                    GEMINI_API_KEY: process.env.API_KEY || process.env.GEMINI_API_KEY
+                    GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.API_KEY,
+                    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD
                 })}
       };
     </script>
@@ -262,12 +276,12 @@ const server = http.createServer((req, res) => {
 // Serverni ishga tushirish
 server.listen(PORT, () => {
     console.log(`\n===============================================`);
-    console.log(`✅ FinLex Server ishga tushdi!`);
+    console.log(`✅ Finco Server ishga tushdi!`);
     console.log(`🌍 WEB (Admin Panel): http://localhost:${PORT}`);
     console.log(`🤖 TELEGRAM BOT:      Launched and waiting for messages...`);
 
     if (!getAIClient()) {
-        console.warn(`\n⚠️  DIQQAT: .env faylida API_KEY sozlanmagan!`);
+        console.warn(`\n⚠️  DIQQAT: .env faylida GEMINI_API_KEY sozlanmagan!`);
         console.warn(`   Telegram bot javob bermasligi mumkin.`);
         console.warn(`   Iltimos, .env faylida haqiqiy Gemini API kalitini kiritib serverni qayta ishga tushiring.\n`);
     } else {

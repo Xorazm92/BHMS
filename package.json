@@ -1,7 +1,7 @@
 {
   "name": "finlex-ai-bot",
   "version": "2.0.0",
-  "description": "FinLex AI - Uzbekistan Accounting & Finance RAG Bot",
+  "description": "Finco AI - Uzbekistan Accounting & Finance RAG Bot",
   "main": "server.js",
   "type": "module",
   "scripts": {

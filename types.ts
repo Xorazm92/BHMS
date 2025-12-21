@@ -40,7 +40,6 @@ export enum ViewState {
   KNOWLEDGE_BASE = 'KNOWLEDGE_BASE',
   BOT_SIMULATOR = 'BOT_SIMULATOR',
   TELEGRAM_CONFIG = 'TELEGRAM_CONFIG',
-  API_SETTINGS = 'API_SETTINGS', // Yangi menyu
 }
 
 export interface ToastNotification {
