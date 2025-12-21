@@ -274,7 +274,8 @@ const server = http.createServer((req, res) => {
 });
 
 // Serverni ishga tushirish
-server.listen(PORT, () => {
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n===============================================`);
     console.log(`✅ Finco Server ishga tushdi!`);
     console.log(`🌍 WEB (Admin Panel): http://localhost:${PORT}`);
