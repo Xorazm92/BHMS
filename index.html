@@ -7,12 +7,18 @@
   <title>Finco AI - Buxgalteriya va Moliya Eksperti</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
 
+  <script>
+    // Suppress Tailwind warning
+    const originalWarn = console.warn;
+    console.warn = function (...args) {
+      if (args[0] && args[0].includes && args[0].includes('cdn.tailwindcss.com')) return;
+      originalWarn.apply(console, args);
+    };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
     rel="stylesheet">
 
-  <!-- Babel for in-browser TSX compilation -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
     body {
@@ -75,14 +81,7 @@
   <div id="root"></div>
 
   <!-- Main Entry Point -->
-  <script type="text/babel" data-type="module">
-    import React from 'react';
-    import ReactDOM from 'react-dom/client';
-    import App from './App.tsx';
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+  <script type="module" src="./index.tsx"></script>
 </body>
 
 </html>

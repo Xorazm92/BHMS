@@ -132,7 +132,7 @@ async function generateAIResponse(userMsg, contextDocs) {
     try {
         const contextText = contextDocs.map(d => `📄 ${d.title}:\n${d.content}`).join("\n\n");
         const model = ai.getGenerativeModel({
-            model: "gemini-1.5-flash-latest",
+            model: "gemini-flash-latest",
             systemInstruction: "Sen Finco AI - O'zbekiston Buxgalteriya (BHMS), Soliq va Mehnat qonunchiligi bo'yicha ekspertsan. Javoblaringni aniq, qonuniy va chiroyli formatda (Markdown) taqdim et."
         });
 
@@ -327,7 +327,7 @@ const server = http.createServer(async (req, res) => {
                         transforms: ['typescript', 'jsx'],
                     });
                     body = result.code;
-                    res.writeHead(200, { 'Content-Type': 'text/javascript' });
+                    res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
                 } catch (e) {
                     console.error(`❌ Transpilation Error (${filePath}):`, e.message);
                     res.writeHead(500);

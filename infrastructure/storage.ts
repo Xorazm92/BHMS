@@ -23,7 +23,15 @@ export class StorageRepository {
     if (error) {
       // 42P01 - PostgreSQL kodi: "relation does not exist" (Jadval yo'q)
       // Status 404 - PostGrest kodi: Jadvallar hali yaratilmagan bo'lishi mumkin
-      if (error.code === '42P01' || (error as any).status === 404) {
+      // PGRST116 - PostGrest kodi: "The result contains 0 rows" (lekin jadval topilmasa ham chiqishi mumkin)
+      const isMissingTable =
+        error.code === '42P01' ||
+        error.code === 'PGRST116' ||
+        (error as any).status === 404 ||
+        error.message?.toLowerCase().includes('not found') ||
+        error.message?.toLowerCase().includes('does not exist');
+
+      if (isMissingTable) {
         return 'MISSING_TABLES';
       }
       console.error("DB Check Error:", error);
