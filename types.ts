@@ -6,7 +6,7 @@ export interface DocumentChunk {
   title: string;      // e.g., "BHMS 1-son"
   content: string;    // The actual text content
   isActive: boolean;
-  category: 'BHMS' | 'CODE' | 'OTHER';
+  category: 'BHMS' | 'TAX' | 'LABOR' | 'OTHER';
   createdAt: number;
 }
 

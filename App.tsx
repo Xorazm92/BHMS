@@ -239,6 +239,7 @@ const ClientInterface: React.FC<ClientInterfaceProps> = ({ documents, config, on
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'BHMS' | 'TAX' | 'LABOR'>('ALL');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -277,7 +278,7 @@ const ClientInterface: React.FC<ClientInterfaceProps> = ({ documents, config, on
 
     try {
       StorageRepository.addChatMessage(userMsg);
-      const response = await aiService.generateResponse(text, documents, config, messages);
+      const response = await aiService.generateResponse(text, documents, config, messages, selectedCategory);
       const botMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: response, timestamp: new Date() };
       setMessages(prev => [...prev, botMsg]);
       StorageRepository.addChatMessage(botMsg);
@@ -296,12 +297,24 @@ const ClientInterface: React.FC<ClientInterfaceProps> = ({ documents, config, on
             <FincoLogo className="w-10 h-10 shadow-lg rounded-xl" />
             <div>
               <h1 className="text-lg font-bold tracking-tight text-slate-900 flex items-center gap-1">Finco<span className="text-blue-600">AI</span></h1>
-              <p className="text-[10px] text-slate-500 font-bold tracking-wide uppercase">Buxgalteriya Eksperti</p>
+              <p className="text-[10px] text-slate-500 font-bold tracking-wide uppercase">Professional Ekspert</p>
             </div>
+          </div>
+          <div className="hidden md:flex items-center bg-slate-100 p-1 rounded-xl gap-1">
+            <button onClick={() => setSelectedCategory('ALL')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedCategory === 'ALL' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Barchasi</button>
+            <button onClick={() => setSelectedCategory('BHMS')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedCategory === 'BHMS' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>BHMS</button>
+            <button onClick={() => setSelectedCategory('TAX')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedCategory === 'TAX' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Soliq</button>
+            <button onClick={() => setSelectedCategory('LABOR')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedCategory === 'LABOR' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Mehnat</button>
           </div>
           <button onClick={onSwitchToAdmin} className="group flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow">
             <Lock size={12} className="text-slate-400 group-hover:text-blue-500" /> Admin
           </button>
+        </div>
+        <div className="md:hidden flex items-center justify-center p-2 border-t border-slate-100 gap-1 bg-white/50 overflow-x-auto">
+          <button onClick={() => setSelectedCategory('ALL')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${selectedCategory === 'ALL' ? 'bg-blue-600 text-white' : 'text-slate-500 bg-slate-50'}`}>Barchasi</button>
+          <button onClick={() => setSelectedCategory('BHMS')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${selectedCategory === 'BHMS' ? 'bg-blue-600 text-white' : 'text-slate-500 bg-slate-50'}`}>BHMS</button>
+          <button onClick={() => setSelectedCategory('TAX')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${selectedCategory === 'TAX' ? 'bg-blue-600 text-white' : 'text-slate-500 bg-slate-50'}`}>Soliq</button>
+          <button onClick={() => setSelectedCategory('LABOR')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${selectedCategory === 'LABOR' ? 'bg-blue-600 text-white' : 'text-slate-500 bg-slate-50'}`}>Mehnat</button>
         </div>
       </header>
       <main className="flex-1 w-full max-w-3xl mx-auto p-4 md:pt-8 pb-36">
@@ -414,7 +427,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ documents, refreshDocum
     } catch { addToast("AI Xatolik", "error"); } finally { setIsSimTyping(false); }
   };
 
-  
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -495,7 +508,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ documents, refreshDocum
               <div className="flex-1 overflow-y-auto">
                 {isLoadingDocs ? <div className="flex justify-center items-center h-40 text-slate-400"><Loader2 className="animate-spin mr-2" /> Yuklanmoqda...</div> : filteredDocs.length > 0 ? filteredDocs.map(doc => (
                   <div key={doc.id} className="p-5 border-b border-slate-50 hover:bg-slate-50/80 transition-colors flex justify-between items-start group">
-                    <div className="flex gap-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0 border border-blue-100"><BookOpen size={20} /></div><div><h4 className="font-bold text-slate-800 text-[15px]">{doc.title}</h4><div className="flex items-center gap-2 mt-1"><span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 font-mono">ID: {doc.id}</span></div><p className="text-sm text-slate-500 mt-2 line-clamp-2 max-w-2xl">{doc.content}</p></div></div>
+                    <div className="flex gap-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0 border border-blue-100"><BookOpen size={20} /></div><div><h4 className="font-bold text-slate-800 text-[15px]">{doc.title}</h4><div className="flex items-center gap-2 mt-1"><span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 font-mono">ID: {doc.id}</span><span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${doc.category === 'BHMS' ? 'bg-blue-100 text-blue-600' : doc.category === 'TAX' ? 'bg-orange-100 text-orange-600' : doc.category === 'LABOR' ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600'}`}>{doc.category}</span></div><p className="text-sm text-slate-500 mt-2 line-clamp-2 max-w-2xl">{doc.content}</p></div></div>
                     <button onClick={() => deleteDoc(doc.id)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2.5 rounded-lg transition-all opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
                   </div>
                 )) : <div className="flex flex-col items-center justify-center h-64 text-slate-400"><Database size={48} className="mb-4 opacity-50" /><p>Hujjatlar topilmadi</p></div>}

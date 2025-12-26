@@ -1,94 +1,35 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { DocumentChunk, SystemConfig, ChatMessage } from "../types";
 
 export class AIService {
-
-  // API Kalitni olish (Faqat .env dan)
-  private getApiKey(): string | undefined {
-    // Serverdan inject qilingan .env kalitini tekshiramiz
-    const envKey = (window as any).process?.env?.GEMINI_API_KEY;
-    if (envKey && envKey.length > 10 && !envKey.includes("your_gemini_api_key")) {
-      return envKey;
-    }
-    return undefined;
-  }
-
-  private buildPrompt(query: string, context: string, history: ChatMessage[]): string {
-    const recentHistory = history.slice(-3).map(msg =>
-      `${msg.role === 'user' ? 'FOYDALANUVCHI' : 'AI'}: ${msg.text}`
-    ).join("\n");
-
-    return `
-SEN: Finco AI - O'zbekiston Buxgalteriya Hisobi (BHMS) va Moliya huquqi bo'yicha professional maslahatchisan.
-
----
-BILIMLAR BAZASI:
-${context}
----
-
-CHAT TARIXI:
-${recentHistory}
-
-SAVOL: "${query}"
-
-VAZIFA: Yuqoridagi bilimlar bazasidan foydalanib, savolga aniq javob ber.
-`;
-  }
 
   async generateResponse(
     query: string,
     chunks: DocumentChunk[],
     config: SystemConfig,
-    history: ChatMessage[] = []
+    history: ChatMessage[] = [],
+    selectedCategory: string = 'ALL'
   ): Promise<string> {
     try {
-      const apiKey = this.getApiKey();
-
-      if (!apiKey) {
-        return "⚠️ **Diqqat:** API Kalit topilmadi. Iltimos, Admin panelning 'Sozlamalar' bo'limiga o'tib, Google Gemini API kalitini kiriting.";
-      }
-
-      const client = new GoogleGenAI({ apiKey: apiKey });
-
-      // 1. Retrieval
-      const searchTerms = query.toLowerCase().split(' ').filter(w => w.length > 3);
-      const activeChunks = chunks.filter(c => {
-        if (!c.isActive) return false;
-        if (searchTerms.length === 0) return true;
-        return searchTerms.some(term =>
-          c.title.toLowerCase().includes(term) ||
-          c.content.toLowerCase().includes(term)
-        );
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: query,
+          category: selectedCategory,
+          history: history.slice(-5).map(m => ({ role: m.role, text: m.text }))
+        })
       });
 
-      const contextText = activeChunks
-        .slice(0, 15)
-        .map(c => `📗 ${c.title}:\n${c.content}`)
-        .join("\n\n");
-
-      if (!contextText) {
-        return "⚠️ Tizimda faol hujjatlar mavjud emas yoki savolga aloqador hujjat topilmadi.";
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Server error');
       }
 
-      const prompt = this.buildPrompt(query, contextText, history);
-
-      // 2. Generation
-      const response: GenerateContentResponse = await client.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          systemInstruction: config.systemInstruction,
-          temperature: config.temperature,
-        }
-      });
-
-      return response.text || "Javob hosil qilinmadi.";
+      const data = await response.json();
+      return data.response || "Javob hosil qilinmadi.";
 
     } catch (error: any) {
       console.error("AI Error:", error);
-      if (error.message?.includes("400") || error.message?.includes("API key")) {
-        return "🚫 **API Kalit Xatosi**: Kiritilgan kalit noto'g'ri. Sozlamalar bo'limidan yangilang.";
-      }
       return `🚫 **Xatolik**: ${error.message}`;
     }
   }

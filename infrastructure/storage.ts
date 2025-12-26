@@ -1,5 +1,6 @@
 import { DocumentChunk, SystemConfig, ChatMessage } from "../types";
 import { BHMS_SEEDS } from "../data/bhmsSeeds";
+import { EXTRA_SEEDS } from "../data/extraSeeds";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
 
 // Repository Keys (LocalStorage fallback)
@@ -39,9 +40,19 @@ export class StorageRepository {
         .select('*')
         .order('id', { ascending: true });
 
-      // Agar jadval bo'lmasa, xatoni yuqoriga uzatamiz (App.tsx da ushlaymiz)
-      if (error && (error.code === '42P01' || (error as any).status === 404)) {
-        throw new Error("MISSING_TABLES");
+      // Improved missing table detection
+      if (error) {
+        const isMissingTable =
+          error.code === '42P01' || // Postgres "relation does not exist"
+          error.code === 'PGRST116' || // PostgREST "not found"
+          (error as any).status === 404 ||
+          error.message?.toLowerCase().includes('not found') ||
+          error.message?.toLowerCase().includes('does not exist');
+
+        if (isMissingTable) {
+          console.warn("⚠️ Supabase Tables not found. Redirecting to setup...");
+          throw new Error("MISSING_TABLES");
+        }
       }
 
       // AVTOMATIK SEEDING (Agar baza bo'sh bo'lsa va jadval mavjud bo'lsa)
@@ -86,8 +97,10 @@ export class StorageRepository {
     if (!supabase) return;
 
     console.log("Seeding started...");
+    const combinedSeeds = [...BHMS_SEEDS, ...EXTRA_SEEDS];
+
     // ID larni olib tashlaymiz, Supabase o'zi generatsiya qiladi
-    const payload = BHMS_SEEDS.map(({ id, ...rest }) => ({
+    const payload = combinedSeeds.map(({ id, ...rest }) => ({
       title: rest.title,
       content: rest.content,
       category: rest.category,
@@ -149,7 +162,13 @@ export class StorageRepository {
         .order('created_at', { ascending: true })
         .limit(50);
 
-      if (error && error.code === '42P01') return []; // Jadval yo'q bo'lsa shunchaki bo'sh qaytar
+      if (error) {
+        const isMissingTable =
+          error.code === '42P01' || (error as any).status === 404 ||
+          error.message?.toLowerCase().includes('not found') ||
+          error.message?.toLowerCase().includes('does not exist');
+        if (isMissingTable) return [];
+      }
 
       if (data) {
         return data.map((d: any) => ({

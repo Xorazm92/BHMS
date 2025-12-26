@@ -5,7 +5,7 @@
 // 4. Logging system bilan ishlaydi.
 
 import { Telegraf } from 'telegraf';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import http from 'http';
@@ -48,7 +48,7 @@ const getAIClient = () => {
     if (!key || key.includes("your_gemini_api_key_here") || key.length < 10) {
         return null;
     }
-    return new GoogleGenAI({ apiKey: key });
+    return new GoogleGenerativeAI(key);
 };
 
 // --- 3. MANTIQ (LOGIKA) ---
@@ -79,15 +79,21 @@ const LOCAL_DOCS = [
     { title: 'BHMS 24-son: Qarz xarajatlari', content: '24-sonli BHMS. Kredit va qarzlar bo‘yicha foizlarni kapitallashtirish yoki xarajatga chiqarish.' }
 ];
 
-async function getRelevantDocuments(query) {
+async function getRelevantDocuments(query, category = null) {
     let allDocs = [...LOCAL_DOCS];
 
     try {
         if (supabase) {
-            const { data, error } = await supabase
+            let dbQuery = supabase
                 .from('documents')
-                .select('title, content')
+                .select('title, content, category')
                 .eq('is_active', true);
+
+            if (category && category !== 'ALL') {
+                dbQuery = dbQuery.eq('category', category);
+            }
+
+            const { data, error } = await dbQuery;
 
             if (!error && data && data.length > 0) {
                 allDocs = [...data, ...LOCAL_DOCS];
@@ -97,14 +103,19 @@ async function getRelevantDocuments(query) {
         console.error("⚠️ Supabase ulanishda xato, local bazadan foydalaniladi.");
     }
 
+    // Agar kategoriya bo'lsa, local docs ni ham filterlaymiz
+    if (category && category !== 'ALL') {
+        allDocs = allDocs.filter(d => d.category === category);
+    }
+
     const searchTerms = query.toLowerCase()
-        .split(/[\s,.-]+/) // Bo'sh joy va belgilardan ajratish
+        .split(/[\s,.-]+/)
         .filter(w => w.length >= 1 && !['nima', 'edi', 'haqida', 'ber', 'uchun'].includes(w));
 
     if (searchTerms.length === 0) return allDocs.slice(0, 5);
 
     const relevant = allDocs.filter(doc => {
-        const text = (doc.title + " " + doc.content).toLowerCase();
+        const text = (doc.title + " " + (doc.content || "")).toLowerCase();
         return searchTerms.some(term => text.includes(term));
     });
 
@@ -114,35 +125,32 @@ async function getRelevantDocuments(query) {
 async function generateAIResponse(userMsg, contextDocs) {
     const ai = getAIClient();
 
-    // Agar serverda API Key bo'lmasa, chiroyli xato qaytaramiz
     if (!ai) {
         return "⚠️ **Tizim Xatoligi:** Serverda Google API Kaliti sozlanmagan.\n\nAdmin Panelga kirib sozlang yoki `.env` faylga kalitni qo'shing.";
     }
 
     try {
         const contextText = contextDocs.map(d => `📄 ${d.title}:\n${d.content}`).join("\n\n");
+        const model = ai.getGenerativeModel({
+            model: "gemini-1.5-flash-latest",
+            systemInstruction: "Sen Finco AI - O'zbekiston Buxgalteriya (BHMS), Soliq va Mehnat qonunchiligi bo'yicha ekspertsan. Javoblaringni aniq, qonuniy va chiroyli formatda (Markdown) taqdim et."
+        });
+
         const prompt = `
-SEN: Finco AI - O'zbekiston buxgalteriya ekspertisan.
 BILIMLAR BAZASI:
 ${contextText}
 
 SAVOL: "${userMsg}"
 
-VAZIFA: Faqat bazaga asoslanib, aniq va qonuniy javob ber. Agar ma'lumot bo'lmasa, "Bazada ma'lumot yo'q" de.
+VAZIFA: Bilimlar bazasiga tayanib javob ber. Agar bazada yo'q bo'lsa, o'z bilimingdan foydalan, lekin buni ta'kidla.
 `;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt
-        });
-
-        return response.text;
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return response.text();
     } catch (e) {
         console.error("⚠️ AI Error:", e.message);
-        if (e.message.includes("API key not valid") || e.message.includes("400")) {
-            return "🚫 **API Kalit Xatosi:** Kiritilgan Google API kaliti yaroqsiz. Iltimos, yangi kalit oling.";
-        }
-        return "⚠️ Tizimda vaqtincha xatolik yuz berdi.";
+        return "⚠️ Tizimda vaqtincha xatolik yuz berdi yoki API kalitda muammo bor.";
     }
 }
 
@@ -157,25 +165,88 @@ async function logChat(role, text) {
 }
 
 // --- 4. BOT HANDLERS ---
-bot.start((ctx) => ctx.reply("🛡 **Finco AI** ga xush kelibsiz! Savolingizni yozing.", { parse_mode: 'Markdown' }));
+const userSessions = new Map();
+
+const getMainMenu = () => {
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📘 BHMS", callback_data: "cat_BHMS" }, { text: "⚖️ Soliq Kodeksi", callback_data: "cat_TAX" }],
+                [{ text: "👷 Mehnat Kodeksi", callback_data: "cat_LABOR" }, { text: "📚 Hammasi", callback_data: "cat_ALL" }]
+            ]
+        },
+        parse_mode: 'Markdown'
+    };
+};
+
+bot.start((ctx) => {
+    ctx.reply("🛡 **Finco AI** ga xush kelibsiz!\n\nSavolingizni qaysi yo'nalish bo'yicha bermoqchisiz? Quyidagilardan birini tanlang:", getMainMenu());
+});
+
+bot.action(/cat_(.+)/, async (ctx) => {
+    const category = ctx.match[1];
+    userSessions.set(ctx.from.id, category);
+    const catNames = { 'BHMS': 'BHMS', 'TAX': 'Soliq Kodeksi', 'LABOR': 'Mehnat Kodeksi', 'ALL': 'Barcha bo\'limlar' };
+    await ctx.answerCbQuery();
+    await ctx.reply(`✅ Siz **${catNames[category]}** bo'limini tanladingiz. Savolingizni yozishingiz mumkin.`, { parse_mode: 'Markdown' });
+});
 
 bot.on('text', async (ctx) => {
     const userMsg = ctx.message.text;
-    await ctx.sendChatAction('typing');
-    logChat('user', userMsg);
+    const userId = ctx.from.id;
+    const category = userSessions.get(userId) || 'ALL';
 
-    const docs = await getRelevantDocuments(userMsg);
+    await ctx.sendChatAction('typing');
+    logChat(`user_${userId}`, userMsg);
+
+    const docs = await getRelevantDocuments(userMsg, category);
     const response = await generateAIResponse(userMsg, docs);
 
-    await ctx.reply(response, { parse_mode: 'Markdown' }).catch(() => ctx.reply(response));
+    await ctx.reply(response, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [[{ text: "🔄 Bo'limni o'zgartirish", callback_data: "show_menu" }]]
+        }
+    }).catch(() => ctx.reply(response));
+
     logChat('model', response);
 });
 
+bot.action('show_menu', (ctx) => {
+    ctx.editMessageText("🛡 Savolingiz yo'nalishini tanlang:", getMainMenu());
+});
+
 // --- 5. WEB SERVER (ADMIN PANEL) ---
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
+    // AI API ENDPOINT
+    if (req.url === '/api/chat' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', async () => {
+            try {
+                const { message, category } = JSON.parse(body);
+                const docs = await getRelevantDocuments(message, category);
+                const aiResponse = await generateAIResponse(message, docs);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ response: aiResponse }));
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            }
+        });
+        return;
+    }
 
     let filePath = '.' + req.url;
     if (filePath === './') filePath = './index.html';
@@ -219,7 +290,6 @@ const server = http.createServer((req, res) => {
         env: ${JSON.stringify({
                             SUPABASE_URL: process.env.SUPABASE_URL,
                             SUPABASE_KEY: process.env.SUPABASE_KEY,
-                            GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.API_KEY,
                             ADMIN_PASSWORD: process.env.ADMIN_PASSWORD
                         })}
       };
